@@ -2,45 +2,29 @@
 setlocal enableextensions enabledelayedexpansion
 
 :SETUP
-set BABUN_VERSION=modules
-set CYGWIN_VERSION=x86
-set PROXY=
-set NOCACHE=false
+set APE_VERSION=master
 
 set SCRIPT_PATH=%~dpnx0
 set SCRIPT_PATH=%SCRIPT_PATH:\=/%
-set BABUN_HOME=%USERPROFILE%/.babun
-set BABUN_HOME=%BABUN_HOME:\=/%
+set APE_HOME=%USERPROFILE%/.ape
+set APE_HOME=%APE_HOME:\=/%
+set PERL_HOME=%APE_HOME%/perl
+set PERL_EXEC=%PERL_HOME%/perl/bin/perl.exe
 
-set DOWNLOADS=%BABUN_HOME%/downloads
-set CYGWIN_HOME=%BABUN_HOME%/cygwin
-set PACKAGES_HOME=%BABUN_HOME%/packages
-set SRC_HOME=%BABUN_HOME%/src
-set SCRIPTS_HOME=%SRC_HOME%/babun-%BABUN_VERSION%/tools
-
+set DOWNLOADS=%APE_HOME%/downloads
 set USER_AGENT=Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)
 
 rem scripts:
 set DOWNLOADER=%DOWNLOADS%/download.vbs
-set WGET==%DOWNLOADS%/wget.exe
+set WGET=%DOWNLOADS%/wget.exe
 set UNZIPPER=%DOWNLOADS%/unzip.exe
-
-set LINKER=%SCRIPTS_HOME%/link.vbs
-set PATH_SETTER=%SCRIPTS_HOME%/setpath.vbs
-set PATH_UNSETTER=%SCRIPTS_HOME%/unsetpath.vbs
+set PERL_ZIP=%DOWNLOADS%/perl.zip
 
 rem to-download:
-set PACKAGES=%DOWNLOADS%/packages-%CYGWIN_VERSION%.zip
-set SRC=%DOWNLOADS%/%BABUN_VERSION%.zip
-
-set CYGWIN_SETUP_URL=http://cygwin.com/setup-%CYGWIN_VERSION%.exe
-set PACKAGES_URL=https://babun.svn.cloudforge.com/packages/packages-%CYGWIN_VERSION%.zip
-set SRC_URL=https://github.com/reficio/babun/archive/%BABUN_VERSION%.zip
 set WGET_URL=http://users.ugent.be/~bpuype/wget/wget.exe
 set UNZIP_URL=http://stahlworks.com/dev/unzip.exe
-
-set CYGWIN_INSTALLER=%DOWNLOADS%/cygwin.exe
-set LOG_FILE=babun.log
+set PERL_URL=http://strawberryperl.com/download/5.18.1.1/strawberry-perl-5.18.1.1-32bit.zip
+set LOG_FILE=ape.log
 
 :CONSTANTS
 rem there have to be TWO EMPTY LINES after this declaration!!!
@@ -107,21 +91,18 @@ GOTO BEGIN
 	GOTO CHECKFORSWITCHES
 		
 :BEGIN
-goto PROPAGATE
-if exist "%CYGWIN_HOME%\bin\mintty.exe" goto RUN
 
 :INSTALL
 if %ERRORLEVEL% NEQ 0 (GOTO ERROR)	
-ECHO [babun] Installing babun version [%BABUN_VERSION%]
+ECHO [ape] Installing ape version [%APE_VERSION%]
 
-rem goto PROPAGATE
-
-if not exist "%BABUN_HOME%" (mkdir "%BABUN_HOME%" || goto :ERROR)
+if not exist "%APE_HOME%" (mkdir "%APE_HOME%" || goto :ERROR)
 if not exist "%DOWNLOADS%" (mkdir "%DOWNLOADS%" || goto :ERROR)
-if not exist "%CYGWIN_HOME%" (mkdir "%CYGWIN_HOME%" || goto :ERROR)
+if not exist "%PERL_HOME%" (mkdir "%PERL_HOME%" || goto :ERROR)
+
 
 if '%NOCACHE%'=='true' (
- 	ECHO [babun] Forcing download as /nocache switch specified
+ 	ECHO [ape] Forcing download as /nocache switch specified
  	del /F /Q "%DOWNLOADS%\*.*" || goto :ERROR
 )
 
@@ -177,23 +158,58 @@ set DOWNLOAD_VBS=^
 		
 echo !DOWNLOAD_VBS! > "%DOWNLOADER%" || goto :ERROR
 
-:: download babun source
+:: download wget.exe
+if not exist "%WGET%" (
+	echo [ape] downloading wget.exe
+	cscript //Nologo "%DOWNLOADER%" "%WGET_URL%" "%DOWNLOADS%" "%USER_AGENT%" "%PROXY%" "%PROXY_USER%" "%PROXY_PASS%"
+	if not exist "%WGET%" (GOTO ERROR)
+)
+	
+:: download unzip.exe
+if not exist "%UNZIPPER%" (
+	echo [ape] downloading unzip.exe
+	cscript //Nologo "%DOWNLOADER%" "%UNZIP_URL%" "%DOWNLOADS%" "%USER_AGENT%" "%PROXY%" "%PROXY_USER%" "%PROXY_PASS%"
+	if not exist "%UNZIPPER%" (GOTO ERROR)
+)
+
+if not exist "%PERL_ZIP%" (
+	echo [babun] downloading perl
+	%WGET% --no-check-certificate "%PERL_URL%" -O "%PERL_ZIP%" -U "%USER_AGENT%"
+	if not exist "%PERL_ZIP%" (GOTO ERROR)
+)
+
+ECHO [ape] Extracting perl
+if not exist "%PERL_ZIP%" (
+	"%UNZIPPER%" -q -o "%PERL_ZIP%" -d "%PERL_HOME%" > %LOG_FILE%
+)
+if not exist "%PERL_EXEC%" (GOTO ERROR)
+
+"%PERL_EXEC%" --version > %LOG_FILE% || goto :ERROR
+	
+set SRC=%DOWNLOADS%\%APE_VERSION%
+set SRC_URL=https://codeload.github.com/reficio/ape/zip/%APE_VERSION%
+set SOURCE_HOME=%APE_HOME%\source
+
 if not exist "%SRC%" (
+	echo [ape] Downloading wget.exe
 	cscript //Nologo "%DOWNLOADER%" "%SRC_URL%" "%DOWNLOADS%" "%USER_AGENT%" "%PROXY%" "%PROXY_USER%" "%PROXY_PASS%"
 	if not exist "%SRC%" (GOTO ERROR)
 )
-:: download wget.exe
-if not exist "%WGET%" (
-	cscript //Nologo "%DOWNLOADER%" "%WGET_URL%" "%DOWNLOADS%" "%USER_AGENT%" "%PROXY%" "%PROXY_USER%" "%PROXY_PASS%"
-	if not exist "%SRC%" (GOTO ERROR)
+
+if not exist "%SOURCE_HOME%" (
+  mkdir "%SOURCE_HOME%"
 )
-:: download unzip.exe
-if not exist "%UNZIP%" (
-	cscript //Nologo "%DOWNLOADER%" "%UNZIP_URL%" "%DOWNLOADS%" "%USER_AGENT%" "%PROXY%" "%PROXY_USER%" "%PROXY_PASS%"
-	if not exist "%SRC%" (GOTO ERROR)
+
+if not exist "%SOURCE_HOME%" (
+	ECHO [ape] Extracting source
+	"%UNZIPPER%" -o "%SRC%" -d "%SOURCE_HOME%" > %LOG_FILE%
 )
+
+"%PERL_EXEC%" "%SOURCE_HOME%\ape-%APE_VERSION%\ape.pl"
+	
+goto END
 :: extract babun source 
-echo [babun] extracting babun source
+echo [ape] extracting babun source
 if exist "%SRC_HOME%" (
 	RD /S /Q "%SRC_HOME%" || goto :ERROR
 )
