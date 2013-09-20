@@ -14,6 +14,11 @@ set PERL_EXEC=%PERL_HOME%/perl/bin/perl.exe
 set DOWNLOADS=%APE_HOME%/downloads
 set USER_AGENT=Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.0)
 
+rem source:
+set SRC=%DOWNLOADS%\%APE_VERSION%.zip
+set SRC_URL=https://github.com/reficio/ape/archive/%APE_VERSION%.zip
+set SRC_HOME=%APE_HOME%\source
+
 rem scripts:
 set DOWNLOADER=%DOWNLOADS%/download.vbs
 set WGET=%DOWNLOADS%/wget.exe
@@ -113,7 +118,7 @@ set DOWNLOAD_VBS=^
 	strLink = Wscript.Arguments(0)!N!^
 	strSaveName = Mid(strLink, InStrRev(strLink,"/") + 1, Len(strLink)) !N!^
 	strSaveTo = Wscript.Arguments(1) ^& "\" ^& strSaveName !N!^
-	WScript.StdOut.Write "[babun] Downloading " ^& strLink ^& " "!N!^
+	WScript.StdOut.Write "[ape] Downloading " ^& strLink ^& " "!N!^
 	Set objHTTP = Nothing !N!^
 	If ((WScript.Arguments.Count ^>= 4) And (Len(WScript.Arguments(3)) ^> 0)) Then !N!^
 		Set objHTTP = CreateObject("Msxml2.ServerXMLHTTP.6.0") !N!^
@@ -160,145 +165,86 @@ echo !DOWNLOAD_VBS! > "%DOWNLOADER%" || goto :ERROR
 
 :: download wget.exe
 if not exist "%WGET%" (
-	echo [ape] downloading wget.exe
 	cscript //Nologo "%DOWNLOADER%" "%WGET_URL%" "%DOWNLOADS%" "%USER_AGENT%" "%PROXY%" "%PROXY_USER%" "%PROXY_PASS%"
 	if not exist "%WGET%" (GOTO ERROR)
 )
 	
 :: download unzip.exe
 if not exist "%UNZIPPER%" (
-	echo [ape] downloading unzip.exe
 	cscript //Nologo "%DOWNLOADER%" "%UNZIP_URL%" "%DOWNLOADS%" "%USER_AGENT%" "%PROXY%" "%PROXY_USER%" "%PROXY_PASS%"
 	if not exist "%UNZIPPER%" (GOTO ERROR)
 )
 
+:: download compressed perl binaries
 if not exist "%PERL_ZIP%" (
-	echo [babun] downloading perl
 	%WGET% --no-check-certificate "%PERL_URL%" -O "%PERL_ZIP%" -U "%USER_AGENT%"
 	if not exist "%PERL_ZIP%" (GOTO ERROR)
 )
 
-if not exist "%PERL_ZIP%" (
+:: unzip perl binaries
+if not exist "%PERL_EXEC%" (
 	ECHO [ape] Extracting perl
 	"%UNZIPPER%" -q -o "%PERL_ZIP%" -d "%PERL_HOME%" > %LOG_FILE%
 )
 if not exist "%PERL_EXEC%" (GOTO ERROR)
 
+:: check if perl works
+ECHO [ape] Checking if perl works
 "%PERL_EXEC%" --version > %LOG_FILE% || goto :ERROR
 	
-set SRC=%DOWNLOADS%\%APE_VERSION%
-set SRC_URL=https://codeload.github.com/reficio/ape/zip/%APE_VERSION%
-set SOURCE_HOME=%APE_HOME%\source
-
+:: download ape perl sources
 if not exist "%SRC%" (
-	echo [ape] Downloading wget.exe
+	echo [ape] Downloading ape sources
 	cscript //Nologo "%DOWNLOADER%" "%SRC_URL%" "%DOWNLOADS%" "%USER_AGENT%" "%PROXY%" "%PROXY_USER%" "%PROXY_PASS%"
 	if not exist "%SRC%" (GOTO ERROR)
 )
 
-if not exist "%SOURCE_HOME%" (
-  mkdir "%SOURCE_HOME%"
-)
-
-ECHO [ape] Extracting source
-RD /S /Q "%SOURCE_HOME%" || goto :ERROR	
-"%UNZIPPER%" -o "%SRC%" -d "%SOURCE_HOME%" > %LOG_FILE%
-	
-
-"%PERL_EXEC%" "%SOURCE_HOME%\ape-%APE_VERSION%\ape.pl"
-	
-:: --------------------------------------------------------------------------
-goto END
-:: extract babun source 
-echo [ape] extracting babun source
 if exist "%SRC_HOME%" (
 	RD /S /Q "%SRC_HOME%" || goto :ERROR
 )
 mkdir "%SRC_HOME%"
-"%UNZIPPER%" "%SRC%" -d "%SRC_HOME%" > %LOG_FILE%
+
+ECHO [ape] Extracting ape source
+"%UNZIPPER%" -o "%SRC%" -d "%SRC_HOME%" > %LOG_FILE%
 if not exist "%SRC_HOME%/*.*" (GOTO ERROR)
-
-:: TODO add proxy
-echo [babun] downloading cygwin
-%WGET% --no-check-certificate "%CYGWIN_SETUP_URL%" -O "%CYGWIN_INSTALLER%" -U "%USER_AGENT%"
-
-:: TODO add proxy
-echo [babun] downloading cygwin packages
-%WGET% --no-check-certificate "%PACKAGES_URL%" -O "%PACKAGES%" -U "%USER_AGENT%"
-
-if exist "%PACKAGES_HOME%" (
-	RD /S /Q "%PACKAGES_HOME%" || goto :ERROR
-)
-mkdir "%PACKAGES_HOME%"
-ECHO [babun] Extracting binary packages
-"%UNZIPPER%" "%PACKAGES%" -d "%PACKAGES_HOME%"	
-if not exist "%PACKAGES_HOME%/*.*" (GOTO ERROR)
-
-ECHO [babun] Installing cygwin
-"%CYGWIN_INSTALLER%" ^
-	--quiet-mode ^
-	--local-install ^
-	--local-package-dir %PACKAGES_HOME% ^
-	--root %CYGWIN_HOME% ^
-	--no-shortcuts ^
-	--no-startmenu ^
-	--no-desktop ^
-	--packages cron,shutdown,openssh,ncurses,vim,nano,unzip,curl,rsync,ping,links,wget,httping,time > %LOG_FILE%
-if %ERRORLEVEL% NEQ 0 (GOTO ERROR)	
 	
-:PROPAGATE		
-ECHO [babun] Tweaking shell settings
-"%CYGWIN_HOME%\bin\sh.exe" -c '/bin/echo.exe "[babun] Bash shell init"' || goto :ERROR
-"%CYGWIN_HOME%\bin\sh.exe" -c 'CYGWIN=nodosfilewarning %SRC_HOME%/babun-%BABUN_VERSION%/shell/install.sh %SRC_HOME%/babun-%BABUN_VERSION%/shell/src' || goto :ERROR
-"%CYGWIN_HOME%\bin\sh.exe" -c 'CYGWIN=nodosfilewarning %SRC_HOME%/babun-%BABUN_VERSION%/bash/install.sh %SRC_HOME%/babun-%BABUN_VERSION%/bash/src' || goto :ERROR
-"%CYGWIN_HOME%\bin\sh.exe" -c 'CYGWIN=nodosfilewarning %SRC_HOME%/babun-%BABUN_VERSION%/pact/install.sh %SRC_HOME%/babun-%BABUN_VERSION%/pact/src' || goto :ERROR
-"%CYGWIN_HOME%\bin\sh.exe" -c 'CYGWIN=nodosfilewarning %SRC_HOME%/babun-%BABUN_VERSION%/zsh/install.sh' || goto :ERROR
 
-ECHO [babun] Configuring start scripts
-copy /y nul "%CYGWIN_HOME%\start.bat" >> %LOG_FILE% || goto :ERROR
-echo start %CYGWIN_HOME%\bin\mintty.exe - >> "%CYGWIN_HOME%\start.bat" || goto :ERROR
-if exist "%CYGWIN_HOME%\Cygwin*" (
-	del "%CYGWIN_HOME%\Cygwin*" || goto :ERROR
-)
+"%PERL_EXEC%" "%SRC_HOME%\ape-%APE_VERSION%\ape.pl"
 	
-ECHO [babun] Creating desktop link
-cscript //Nologo "%LINKER%" "%USERPROFILE%\Desktop\babun.lnk" "%CYGWIN_HOME%\bin\mintty.exe" " - "
-if not exist "%USERPROFILE%\Desktop\babun.lnk" (GOTO ERROR)
-
-ECHO [babun] Setting path
-cscript //Nologo "%PATH_SETTER%" "%SRC_HOME%\babun-%BABUN_VERSION%"
+:: --------------------------------------------------------------------------
+rem ECHO [babun] Setting path
+rem cscript //Nologo "%PATH_SETTER%" "%SRC_HOME%\babun-%BABUN_VERSION%"
 
 :RUN
-ECHO [babun] Starting babun
-start %CYGWIN_HOME%\bin\mintty.exe - || goto :ERROR
+ECHO [ape] Starting ape
 
 GOTO END
 
 :UNINSTALL
-ECHO [babun] Uninstalling...
-if not exist "%BABUN_HOME%" (
-	echo [babun] Not installed
+ECHO [ape] Uninstalling...
+if not exist "%APE_HOME%" (
+	echo [ape] Not installed
 	GOTO END
 ) 
 if exist "%PATHUNSETTER%" (
-	echo [babun] Removing path...
+	echo [ape] Removing path...
 	cscript //Nologo "%PATH_UNSETTER%" "%SRC_HOME%\babun-%BABUN_VERSION%" || goto :ERROR
 )
-echo [babun] Deleting files...
-RD /S /Q "%BABUN_HOME%" || goto :ERROR
+echo [ape] Deleting files...
+RD /S /Q "%APE_HOME%" || goto :ERROR
 if exist "%USERPROFILE%\Desktop\babun.lnk" (
   del "%USERPROFILE%\Desktop\babun.lnk" || goto :ERROR
 )
 GOTO END
 
 :BADSYNTAX
-ECHO Usage: babun.bat [/h] [/nocache] [/proxy=host:port[:user:pass]] [/64] [/uninstall]
+ECHO Usage: ape.bat [/h] [/nocache] [/proxy=host:port[:user:pass]] [/64] [/uninstall]
 GOTO END
 
 :USAGE
 ECHO.
 ECHO    Syntax:
-ECHO		babun	[/h] [/?] [/64] [/nocache] [/install] [/uninstall]
+ECHO		ape	[/h] [/?] [/64] [/nocache] [/install] [/uninstall]
 ECHO			[/proxy=host:port[:user:pass]] [/user-agent=agent-string]  !N!
 ECHO    Default behavior if no option passed:
 ECHO   	* install -^> if babun IS NOT installed
@@ -314,14 +260,14 @@ ECHO 	'/user-agent=agent-string'	Identify as agent-string to the http server
 ECHO 	'/proxy=host:port[user:pass]'	Enables HTTP proxy host:port 
 ECHO.
 ECHO    For example: 
-ECHO 	babun /? 
-ECHO 	babun /nocache /proxy=test.com:80 /install 
-ECHO 	babun /install /user-agent="Mozilla/5.0 (Windows NT 6.1; rv:6.0)" 
+ECHO 	ape /? 
+ECHO 	ape /nocache /proxy=test.com:80 /install 
+ECHO 	ape /install /user-agent="Mozilla/5.0 (Windows NT 6.1; rv:6.0)" 
 ECHO.
 GOTO END
 
 :ERROR
-ECHO Terminating due to error #%errorlevel%
+ECHO [ape] Terminating due to ERROR #%errorlevel%
 EXIT /b %errorlevel%
 
 :END
