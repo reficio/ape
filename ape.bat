@@ -178,8 +178,8 @@ if not exist "%PERL_ZIP%" (
 	if not exist "%PERL_ZIP%" (GOTO ERROR)
 )
 
-ECHO [ape] Extracting perl
 if not exist "%PERL_ZIP%" (
+	ECHO [ape] Extracting perl
 	"%UNZIPPER%" -q -o "%PERL_ZIP%" -d "%PERL_HOME%" > %LOG_FILE%
 )
 if not exist "%PERL_EXEC%" (GOTO ERROR)
@@ -200,13 +200,14 @@ if not exist "%SOURCE_HOME%" (
   mkdir "%SOURCE_HOME%"
 )
 
-if not exist "%SOURCE_HOME%" (
-	ECHO [ape] Extracting source
-	"%UNZIPPER%" -o "%SRC%" -d "%SOURCE_HOME%" > %LOG_FILE%
-)
+ECHO [ape] Extracting source
+RD /S /Q "%SOURCE_HOME%" || goto :ERROR	
+"%UNZIPPER%" -o "%SRC%" -d "%SOURCE_HOME%" > %LOG_FILE%
+	
 
 "%PERL_EXEC%" "%SOURCE_HOME%\ape-%APE_VERSION%\ape.pl"
 	
+:: --------------------------------------------------------------------------
 goto END
 :: extract babun source 
 echo [ape] extracting babun source
